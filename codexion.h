@@ -3,10 +3,10 @@
 /*                                                        :::      ::::::::   */
 /*   codexion.h                                         :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: ihavauch <ihavauch@student.42.fr>          +#+  +:+       +#+        */
+/*   By: digglega <digglega@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/14 13:00:00 by digglega          #+#    #+#             */
-/*   Updated: 2026/10/14 13:00:00 by digglega         ###   ########.fr       */
+/*   Updated: 2026/10/16 00:00:00 by digglega         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,87 +18,84 @@
 # include <string.h>
 # include <pthread.h>
 # include <stdint.h>
+# include <stdatomic.h>
 # include <unistd.h>
 # include <time.h>
 
-/* Что делает кодер. */
-# define WAITING 0
-# define COMPILING 1
-# define DEBUGGING 2
+# define WAITING     0
+# define COMPILING   1
+# define DEBUGGING   2
 # define REFACTORING 3
 
+# define FIFO  0
+# define EDF   1
+
+typedef struct s_coder	t_coder;
+typedef struct s_dongle	t_dongle;
 typedef struct s_all	t_all;
 
-/* Кодер: один человечек. */
-typedef struct s_coder
+struct s_coder
 {
-	int			id;
-	int			idx;
-	int			state;
-	int			count;
-	uint64_t	last;
-	uint64_t	want;
-	t_all		*all;
-	pthread_t	th;
-}	t_coder;
+	int				id;
+	_Atomic int		state;
+	_Atomic int		count;
+	_Atomic uint64_t	ticket;
+	_Atomic uint64_t	last;
+	t_all			*all;
+	pthread_t		th;
+};
 
-/* Донгл: замок + хозяин + время. */
-typedef struct s_dongle
+struct s_dongle
 {
-	pthread_mutex_t	m;
-	int				owner;
-	uint64_t		ready;
-}	t_dongle;
+	_Atomic int		owner;
+	_Atomic uint64_t	ready;
+};
 
-/* Все общее: стол, куча, замки. */
 struct s_all
 {
 	int				n;
+	int				words;
 	uint64_t		burn;
 	uint64_t		comp;
 	uint64_t		deb;
 	uint64_t		ref;
 	int				need;
 	uint64_t		cool;
-	int				fifo;
 	uint64_t		start;
-	int				stop;
+	_Atomic int		stop;
+	_Atomic uint64_t	next_ticket;
+	int				scheduler;
 	t_coder			*coders;
 	t_dongle		*dongles;
-	int				*heap;
-	int				hsize;
-	pthread_mutex_t	lock;
-	pthread_cond_t	bell;
+	uint64_t		*fork_bits;
 	pthread_mutex_t	pen;
+	FILE			*bench;
 };
 
-/* Время. */
 uint64_t	wall_ms(void);
 uint64_t	now_ms(t_all *a);
 int			is_stop(t_all *a);
 void		naps(t_all *a, uint64_t ms);
-/* Цифры. */
 int			parse_args(t_all *a, char **av);
-/* Куча. */
-int			better(t_all *a, int x, int y);
-void		hpush(t_all *a, int idx);
-int			hpop(t_all *a);
-/* Стол. */
+void		bits_set(uint64_t *bits, int idx);
+void		bits_clear(uint64_t *bits, int idx);
+int			bits_get(uint64_t *bits, int idx);
+int			bits_try_take2(uint64_t *bits, int l, int r);
+void		bits_release2(uint64_t *bits, int l, int r);
+void		bits_init(t_all *a);
+void		bits_free(t_all *a);
 int			table_init(t_all *a);
 void		table_free(t_all *a);
 int			all_done(t_all *a);
-int			pick_give(t_all *a, uint64_t now);
-int			give_one_pub(t_all *a, int idx, uint64_t now);
+int			try_take(t_all *a, t_coder *c, uint64_t now);
+uint64_t	yield_ns(t_all *a, t_coder *c, uint64_t now);
 void		put_back(t_all *a, int idx, uint64_t now);
-/* Печать. */
 void		say(t_all *a, int id, const char *m, uint64_t ts);
-/* Люди. */
+void		say_took(t_all *a, int idx, uint64_t now);
 void		*coder_job(void *arg);
 int			one_round(t_coder *c, t_all *a);
-void		*plan_job(void *arg);
 void		*watch_job(void *arg);
-/* Старт. */
-int			start_all(t_all *a, pthread_t *pl, pthread_t *mo);
-void		join_all(t_all *a, pthread_t pl, pthread_t mo);
+int			start_all(t_all *a, pthread_t *mo);
+void		join_all(t_all *a, pthread_t mo);
 
 #endif

@@ -3,41 +3,43 @@
 /*                                                        :::      ::::::::   */
 /*   main.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: digglega <ihavauch@student.42.fr>          +#+  +:+       +#+        */
+/*   By: digglega <digglega@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/14 13:00:00 by digglega          #+#    #+#             */
-/*   Updated: 2026/10/14 13:00:00 by digglega         ###   ########.fr       */
+/*   Updated: 2026/10/16 00:00:00 by digglega         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "codexion.h"
 
-/* Зовём всех за стол. */
-int	start_all(t_all *a, pthread_t *pl, pthread_t *mo)
+int	start_all(t_all *a, pthread_t *mo)
 {
-	int	i;
+	pthread_attr_t	attr;
+	int				i;
 
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, 64 * 1024);
 	i = 0;
 	while (i < a->n)
 	{
-		if (pthread_create(&a->coders[i].th, NULL, coder_job, &a->coders[i]))
+		if (pthread_create(&a->coders[i].th, &attr, coder_job, &a->coders[i]))
+		{
+			pthread_attr_destroy(&attr);
 			return (1);
+		}
 		i++;
 	}
-	if (pthread_create(pl, NULL, plan_job, a))
-		return (1);
+	pthread_attr_destroy(&attr);
 	if (pthread_create(mo, NULL, watch_job, a))
 		return (1);
 	return (0);
 }
 
-/* Всех ждём. */
-void	join_all(t_all *a, pthread_t pl, pthread_t mo)
+void	join_all(t_all *a, pthread_t mo)
 {
 	int	i;
 
 	pthread_join(mo, NULL);
-	pthread_join(pl, NULL);
 	i = 0;
 	while (i < a->n)
 	{
@@ -46,20 +48,14 @@ void	join_all(t_all *a, pthread_t pl, pthread_t mo)
 	}
 }
 
-/* Грустный конец при ошибке старта. */
 static void	fail_start(t_all *a)
 {
-	pthread_mutex_lock(&a->lock);
-	a->stop = 1;
-	pthread_cond_broadcast(&a->bell);
-	pthread_mutex_unlock(&a->lock);
+	atomic_store(&a->stop, 1);
 }
 
-/* Главная дверь. */
 int	main(int argc, char **argv)
 {
 	t_all		a;
-	pthread_t	pl;
 	pthread_t	mo;
 
 	if (argc != 9)
@@ -73,14 +69,14 @@ int	main(int argc, char **argv)
 		return (1);
 	}
 	a.start = wall_ms();
-	if (start_all(&a, &pl, &mo))
+	if (start_all(&a, &mo))
 	{
 		fprintf(stderr, "Error: thread fail\n");
 		fail_start(&a);
 		table_free(&a);
 		return (1);
 	}
-	join_all(&a, pl, mo);
+	join_all(&a, mo);
 	table_free(&a);
 	return (0);
 }

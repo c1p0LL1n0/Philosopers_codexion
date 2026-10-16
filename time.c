@@ -3,16 +3,15 @@
 /*                                                        :::      ::::::::   */
 /*   time.c                                             :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: digglega <ihavauch@student.42.fr>          +#+  +:+       +#+        */
+/*   By: digglega <digglega@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/14 13:00:00 by digglega          #+#    #+#             */
-/*   Updated: 2026/10/14 13:00:00 by digglega         ###   ########.fr       */
+/*   Updated: 2026/10/16 00:00:00 by digglega         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "codexion.h"
 
-/* Часы. Назад не идут. */
 uint64_t	wall_ms(void)
 {
 	struct timespec	ts;
@@ -21,34 +20,41 @@ uint64_t	wall_ms(void)
 	return ((uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000);
 }
 
-/* Сколько прошло с начала. */
 uint64_t	now_ms(t_all *a)
 {
 	return (wall_ms() - a->start);
 }
 
-/* Игра кончилась? */
 int	is_stop(t_all *a)
 {
-	int	s;
-
-	pthread_mutex_lock(&a->lock);
-	s = a->stop;
-	pthread_mutex_unlock(&a->lock);
-	return (s);
+	return (a->stop);
 }
 
-/* Спим кусочками, чтобы проснуться при конце. */
+/* Спим до дедлайна точным сном. Кусочки по 2 мс чтобы выйти при stop. */
 void	naps(t_all *a, uint64_t ms)
 {
-	uint64_t	i;
+	struct timespec	ts;
+	uint64_t		end;
+	uint64_t		now;
+	uint64_t		left;
+	uint64_t		step;
 
-	i = 0;
-	while (i < ms)
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	end = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000 + ms;
+	while (1)
 	{
 		if (is_stop(a))
 			break ;
-		usleep(1000);
-		i++;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		now = (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
+		if (now >= end)
+			break ;
+		left = end - now;
+		step = 2;
+		if (left < step)
+			step = left;
+		ts.tv_sec = (time_t)(step / 1000);
+		ts.tv_nsec = (long)((step % 1000) * 1000000L);
+		nanosleep(&ts, NULL);
 	}
 }

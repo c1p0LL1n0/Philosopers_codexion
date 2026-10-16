@@ -3,16 +3,15 @@
 /*                                                        :::      ::::::::   */
 /*   say.c                                              :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
-/*   By: digglega <ihavauch@student.42.fr>          +#+  +:+       +#+        */
+/*   By: digglega <digglega@student.42.fr>          +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/10/14 13:00:00 by digglega          #+#    #+#             */
-/*   Updated: 2026/10/14 13:00:00 by digglega         ###   ########.fr       */
+/*   Updated: 2026/10/16 00:00:00 by digglega         ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
 #include "codexion.h"
 
-/* Цифра в буфер. */
 static int	put_num(char *buf, uint64_t v)
 {
 	char	tmp[24];
@@ -33,7 +32,6 @@ static int	put_num(char *buf, uint64_t v)
 	return (i);
 }
 
-/* Печать одним write. Звать с закрытым lock. */
 void	say(t_all *a, int id, const char *m, uint64_t ts)
 {
 	char	buf[128];
@@ -52,4 +50,19 @@ void	say(t_all *a, int id, const char *m, uint64_t ts)
 	pthread_mutex_lock(&a->pen);
 	write(1, buf, (size_t)len);
 	pthread_mutex_unlock(&a->pen);
+}
+
+void	say_took(t_all *a, int idx, uint64_t now)
+{
+	int	id;
+
+	id = a->coders[idx].id;
+	if (a->n == 1)
+		say(a, id, "has taken a dongle", now);
+	else
+	{
+		say(a, id, "has taken a dongle", now);
+		say(a, id, "has taken a dongle", now);
+	}
+	say(a, id, "is compiling", now);
 }
